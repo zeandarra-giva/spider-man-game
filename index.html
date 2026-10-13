@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spidey Sense</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="hud" class="hud hidden">
+    <div class="hud-round" id="hud-round"></div>
+    <div class="hud-players" id="hud-players"></div>
+    <div class="hud-tools">
+      <button class="icon-btn" data-action="mute" id="mute-btn" title="Mute (M)">🔊</button>
+      <button class="icon-btn" data-action="quit" title="Quit to title">✕</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TITLE -->
+    <section id="screen-title" class="screen active">
+      <div class="web-deco tl"></div>
+      <div class="web-deco br"></div>
+      <h1 class="logo"><span>Spidey</span><span>Sense</span></h1>
+      <p class="tagline">Memorize your color. Feel the tingle. <strong>Strike the pose!</strong></p>
+      <button class="btn big" data-action="mode">Suit up ▸</button>
+      <button class="btn ghost" data-action="howto">How to play</button>
+    </section>
+
+    <!-- MODE PICKER -->
+    <section id="screen-mode" class="screen">
+      <p class="eyebrow">Step 1 of 3</p>
+      <h2 class="comic-title">How do you want to play?</h2>
+      <div class="mode-cards">
+        <button class="mode-card" data-action="pick-mode" data-mode="single">
+          <span class="mode-art one"><i></i><i></i><i></i></span>
+          <b>One team</b>
+          <span>2–6 spiders on the same team. Save New York together and fight for the top score.</span>
+          <kbd>1</kbd>
+        </button>
+        <button class="mode-card" data-action="pick-mode" data-mode="versus">
+          <span class="mode-art two"><i></i><em>VS</em><i></i></span>
+          <b>Head to head</b>
+          <span>Two teams of 2–4 on a split screen, facing the same rounds at the same time. Best team wins.</span>
+          <kbd>2</kbd>
+        </button>
+      </div>
+      <p class="hint">Next: a quick how-to for the mode you pick, then player setup.</p>
+      <button class="btn ghost" data-action="title">Back</button>
+    </section>
+
+    <!-- HOW TO PLAY: slideshow -->
+    <section id="screen-howto" class="screen">
+      <p class="eyebrow" id="howto-step"></p>
+      <div class="slide" id="slide"></div>
+      <div class="slide-nav">
+        <button class="btn ghost" data-action="slide-prev" id="slide-prev">◂ Back</button>
+        <div class="dots" id="slide-dots"></div>
+        <button class="btn" data-action="slide-next" id="slide-next">Next ▸</button>
+      </div>
+      <button class="link-btn" data-action="setup" id="skip-howto" hidden>Already know how to play? Skip to setup ▸</button>
+      <p class="hint"><kbd>←</kbd> <kbd>→</kbd> flip slides · <kbd>Esc</kbd> back to title</p>
+    </section>
+
+    <!-- SETUP -->
+    <section id="screen-setup" class="screen">
+      <div class="panel">
+        <p class="setup-step">Step 3 of 3</p>
+        <h2 class="comic-title">Assemble the Spider-Team</h2>
+        <form id="setup-form" autocomplete="off">
+          <div class="field"><span class="label">Mode</span><span class="mode-chip" id="mode-chip"></span><button type="button" class="link-btn" data-action="mode">Change</button></div>
+          <div id="teams-block" class="teams-block" hidden>
+            <div class="team-col"><input class="team-name" type="text" maxlength="20" aria-label="Team 1 name"><div id="roster-0" class="name-list"></div></div>
+            <div class="vs">VS</div>
+            <div class="team-col"><input class="team-name" type="text" maxlength="20" aria-label="Team 2 name"><div id="roster-1" class="name-list"></div></div>
+          </div>
+          <div class="field"><span class="label" id="count-label">Spiders</span><div class="seg" id="count-seg"></div></div>
+          <div id="name-list" class="name-list"></div>
+          <div class="field"><span class="label">Rounds</span><div class="seg" id="rounds-seg"></div></div>
+          <div class="field"><span class="label">Difficulty</span><div class="seg" id="diff-seg"></div></div>
+          <label class="toggle"><input type="checkbox" id="villains-toggle" checked> Villain twists (Mysterio, Doc Ock, Kraven, Venom)</label>
+          <p id="setup-error" class="form-error" hidden></p>
+          <div class="actions">
+            <button type="button" class="btn ghost" data-action="mode">Back</button>
+            <button type="submit" class="btn">Assign colors ▸</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- BRIEFING: one player at a time -->
+    <section id="screen-brief" class="screen">
+      <p class="eyebrow" id="brief-step"></p>
+      <div id="brief-card-wrap" class="brief-card-wrap"></div>
+      <button class="btn" data-action="brief-next" id="brief-next">Next spider ▸</button>
+      <p class="hint">Press <kbd>Space</kbd> to continue</p>
+    </section>
+
+    <!-- MEMORIZE: everyone at once -->
+    <section id="screen-memorize" class="screen">
+      <h2 class="comic-title">Memorize your pose!</h2>
+      <div class="timer-big" id="mem-timer"></div>
+      <div id="mem-grid" class="pose-grid"></div>
+      <button class="btn" data-action="begin">We're ready, hide them! ▸</button>
+    </section>
+
+    <!-- PLAY -->
+    <section id="screen-play" class="screen">
+      <div id="stage" class="stage" data-mode="splash">
+        <div class="sense">
+          <div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="ring"></div>
+          <div class="sense-head">🕷️</div>
+          <p class="sense-text">Spidey sense tingling…</p>
+        </div>
+        <div class="cue" id="cue"></div>
+        <div class="splash" id="splash"></div>
+        <div class="react-num" id="react-num"></div>
+        <div class="react-bar"><div id="react-fill"></div></div>
+      </div>
+    </section>
+
+    <!-- JUDGE -->
+    <section id="screen-judge" class="screen">
+      <p class="eyebrow" id="judge-eyebrow"></p>
+      <h2 class="comic-title" id="judge-title">Did they nail it?</h2>
+      <div id="judge-grid" class="judge-cols"></div>
+      <button class="btn" id="judge-next" data-action="judge-next" disabled>Score it ▸</button>
+      <p class="hint">Keys <kbd>1</kbd>–<kbd>6</kbd> flip a player's verdict (second team: <kbd>Q</kbd>–<kbd>R</kbd>) · <kbd>Enter</kbd> to continue</p>
+    </section>
+
+    <!-- END -->
+    <section id="screen-end" class="screen">
+      <h2 class="comic-title" id="end-title"></h2>
+      <p class="tagline" id="end-sub"></p>
+      <ol id="leaderboard" class="leaderboard"></ol>
+      <div class="actions">
+        <button class="btn" id="end-primary" data-action="rematch">Rematch (new colors) ▸</button>
+        <button class="btn ghost" id="end-secondary" data-action="setup">Change team</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="poses/poses.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

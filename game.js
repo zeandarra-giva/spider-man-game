@@ -36,7 +36,7 @@ const TEAM_NAMES = [DEFAULT_NAMES, ['Eddie', 'Felicia', 'Harry', 'Mary Jane']]; 
 const MAX_LIVES = 3;
 const MIN_REACT = 900;
 const REACT_DECAY = 0.94; // reaction window shrinks ~6% every round
-const BASE_POINTS = { single: 100, mysterio: 150, docock: 120, venom: 50, chain: 200, kraven: 150 };
+const BASE_POINTS = { single: 100, mysterio: 150, docock: 120, venom: 50, chain: 200, kraven: 150, whoswho: 150 };
 const DANGER_HEAL = 4; // a correct pose calms the city a little
 
 /* ---------- Helpers ---------- */
@@ -337,6 +337,37 @@ function newGame() {
   renderBrief();
 }
 
+/* ---------- Fit to viewport ---------- */
+
+// Make the active screen fit without scrolling: try layouts from roomiest to densest (wide cards, then
+// narrower cards so more fit per row, then hiding card descriptions) and keep the one with the biggest art.
+function fitToViewport(screen) {
+  const fits = () => screen.scrollHeight <= screen.clientHeight + 1;
+  const set = ([h, min, tight]) => {
+    screen.style.setProperty('--art-h', `${h}px`);
+    screen.style.setProperty('--card-min', `${min}px`);
+    screen.classList.toggle('tight', tight);
+  };
+  let best = null;
+  for (const [min, tight] of [[170, false], [130, false], [130, true], [100, true]]) {
+    for (let h = 320; h >= 60; h = Math.round(h * 0.9)) {
+      set([h, min, tight]);
+      if (fits()) {
+        // A denser layout only wins if it gives clearly bigger pose art.
+        if (!best || h > best[0] * 1.25) best = [h, min, tight];
+        break;
+      }
+    }
+  }
+  set(best || [50, 100, true]);
+}
+
+const FIT_SCREENS = ['screen-brief', 'screen-memorize', 'screen-judge'];
+window.addEventListener('resize', () => {
+  const active = document.querySelector('.screen.active');
+  if (active && FIT_SCREENS.includes(active.id)) fitToViewport(active);
+});
+
 /* ---------- Cards ---------- */
 
 function poseCard(p, { showName = true, pose = p.pose } = {}) {
@@ -357,6 +388,7 @@ function renderBrief() {
   wrap.innerHTML = poseCard(p);
   wrap.firstElementChild.classList.add('reveal');
   $('#brief-next').textContent = game.briefIndex === game.players.length - 1 ? 'Show everyone ▸' : 'Next spider ▸';
+  fitToViewport($('#screen-brief'));
   Sound.thwip();
 }
 
@@ -372,8 +404,11 @@ function briefNext() {
 function startMemorize() {
   game.phase = 'memorize';
   show('memorize');
-  $('#mem-grid').innerHTML = game.sides.map((side, k) =>
-    (versus() ? `<h3 class="grid-team">${esc(side.name)}</h3>` : '') + sidePlayers(k).map((p) => poseCard(p)).join('')).join('');
+  // Head to head shows the two teams side by side so each team's cards fit in one row.
+  const cards = (k) => `<div class="pose-grid">${sidePlayers(k).map((p) => poseCard(p)).join('')}</div>`;
+  $('#mem-grid').innerHTML = versus()
+    ? `<div class="mem-teams">${game.sides.map((side, k) => `<section><h3 class="grid-team">${esc(side.name)}</h3>${cards(k)}</section>`).join('')}</div>`
+    : cards(0);
   let left = DIFFICULTY[game.settings.difficulty].memorize;
   const timer = $('#mem-timer');
   const tick = () => {
@@ -385,6 +420,7 @@ function startMemorize() {
     later(tick, 1000);
   };
   tick();
+  fitToViewport($('#screen-memorize'));
 }
 
 function beginRounds() {
@@ -464,6 +500,7 @@ function pickRoundType(sides) {
   const enough = (n) => sides.every((k) => aliveOn(k).length >= n);
   const opts = [['single', 5]];
   if (r >= 3 && enough(2)) opts.push(['chain', 2]);
+  if (r >= 4 && enough(2)) opts.push(['whoswho', 2]);
   if (game.settings.villains) {
     if (r >= 3) opts.push(['mysterio', 2]);
     if (r >= 4 && enough(2)) opts.push(['docock', 2]);
@@ -491,6 +528,11 @@ function buildPart(side, type, chainLen) {
       if (sequence[sequence.length - 1] !== p) sequence.push(p);
     }
     return { side, type, sequence, targets: alive.filter((p) => sequence.includes(p)) };
+  }
+  if (type === 'whoswho') {
+    // A pose is shown with no color: its owner strikes it, teammates do the meme's pointing pose at the owner.
+    const owner = pick(alive);
+    return { side, type, targets: [owner], crowd: alive.filter((p) => p !== owner) };
   }
   if (type === 'kraven') {
     const thief = pick(alive);
@@ -523,7 +565,11 @@ function pickEvent() {
   }
   const chainLen = Math.min(5, 2 + level());
   const parts = live.map((k) => (active.includes(k) ? buildPart(k, type, chainLen) : { side: k, type: 'hold', targets: aliveOn(k) }));
-  return { type, solo: active.length < live.length ? active[0] : null, parts, targets: parts.flatMap((part) => part.targets) };
+  return {
+    type, solo: active.length < live.length ? active[0] : null, parts,
+    targets: parts.flatMap((part) => part.targets),
+    crowdKeys: parts.filter((part) => part.crowd && part.crowd.length).map((part) => `c${part.side}`),
+  };
 }
 
 function sense() {
@@ -538,7 +584,7 @@ function sense() {
     later(() => { $('#stage').classList.add('fakeout'); Sound.flicker(); }, dur * 0.5);
     later(() => $('#stage').classList.remove('fakeout'), dur * 0.5 + 160);
   }
-  later(game.event.type === 'chain' ? showChain : showCue, dur);
+  later({ chain: showChain, whoswho: showWhosWho }[game.event.type] || showCue, dur);
 }
 
 function cueBlock(c) {
@@ -614,6 +660,21 @@ function showChain() {
     : other(part))), ms), len * step);
 }
 
+// Who's Who: the meme flashes first, then the mystery pose.
+function showWhosWho() {
+  const other = (part) => partCue(part)[0];
+  $('#cue').innerHTML = layout((part) => (part.type === 'whoswho'
+    ? '<div class="cue-meme"><img src="assets/whos-who.jpg" alt=""><span class="cue-word">WHO\'S WHO?!</span></div>'
+    : other(part)));
+  setStage('chain');
+  Sound.alarm();
+  later(() => startTimer(layout((part) => (part.type === 'whoswho'
+    ? `<div class="cue-who"><div class="villain-tag">Who's Who?</div>
+        <figure class="who-pose"><img src="poses/${encodeURI(part.targets[0].pose.file)}" alt=""></figure>
+        <p>Your pose? <b>Strike it!</b> Not yours? <b>Do the meme point 👉 at its owner!</b></p></div>`
+    : other(part))), reactMs() + 600), 1300);
+}
+
 function startTimer(html, ms) {
   $('#cue').innerHTML = html;
   setStage('cue');
@@ -646,7 +707,7 @@ function freeze() {
 
 /* ---------- Judging ---------- */
 
-const EVENT_LABEL = { mysterio: 'Mysterio', docock: 'Doc Ock', venom: 'Venom', chain: 'Spider-Chain', kraven: 'Kraven' };
+const EVENT_LABEL = { mysterio: 'Mysterio', docock: 'Doc Ock', venom: 'Venom', chain: 'Spider-Chain', kraven: 'Kraven', whoswho: "Who's Who" };
 const JUDGE_TITLES = {
   single: 'Did they nail the pose?',
   mysterio: 'Did the right spider pose?',
@@ -654,6 +715,7 @@ const JUDGE_TITLES = {
   venom: 'Who moved? Mark them ✘',
   chain: 'Did the chain go in order?',
   kraven: 'Did they steal the right pose?',
+  whoswho: 'Right pose? Right pointing?',
 };
 const isStill = (part) => part.type === 'venom' || part.type === 'hold';
 
@@ -663,6 +725,10 @@ function judgeExtra(part) {
   }
   if (part.type === 'kraven') return `<p class="judge-note">${esc(part.targets[0].name)} had to steal <b>${esc(part.victim.name)}</b>'s ${part.victim.color.name} pose.</p>`;
   if (part.type === 'hold') return '<p class="judge-note">Hold-still round: mark anyone who moved ✘</p>';
+  if (part.type === 'whoswho') {
+    const owner = part.targets[0];
+    return `<p class="judge-note"><b>${owner.pose.name}</b> belongs to <b>${esc(owner.name)}</b>. Everyone else should be pointing at them, meme-style.</p>`;
+  }
   return '';
 }
 
@@ -676,6 +742,20 @@ function judgeItem(part, p) {
     <div class="verdict">
       <button class="yes" data-action="verdict" data-idx="${p.idx}" data-v="1">✔ ${yes}</button>
       <button class="no" data-action="verdict" data-idx="${p.idx}" data-v="0">✘ ${no}</button>
+    </div></div>`;
+}
+
+const crowdKey = (side) => (side === 1 ? 'P' : '0');
+
+function crowdItem(part) {
+  const key = `c${part.side}`;
+  return `<div class="judge-item crowd" data-idx="${key}">
+    <span class="key-badge">${crowdKey(part.side)}</span>
+    <article class="pose-card mini crowd-card"><header><span class="sym">👉</span><span class="cname">The crowd</span></header>
+      <p>${part.crowd.map((p) => esc(p.name)).join(', ')}</p></article>
+    <div class="verdict">
+      <button class="yes" data-action="verdict" data-idx="${key}" data-v="1">✔ Pointed right</button>
+      <button class="no" data-action="verdict" data-idx="${key}" data-v="0">✘ Wrong spider</button>
     </div></div>`;
 }
 
@@ -694,9 +774,10 @@ function openJudge() {
     <section class="judge-col">
       ${versus() ? `<h3 class="judge-team">${esc(game.sides[part.side].name)}</h3>` : ''}
       ${judgeExtra(part)}
-      <div class="pose-grid judge-grid${isStill(part) ? ' compact' : ''}">${part.targets.map((p) => judgeItem(part, p)).join('')}</div>
+      <div class="pose-grid judge-grid${isStill(part) ? ' compact' : ''}">${part.targets.map((p) => judgeItem(part, p)).join('')}${part.crowd && part.crowd.length ? crowdItem(part) : ''}</div>
     </section>`).join('');
   updateJudge();
+  fitToViewport($('#screen-judge'));
 }
 
 function updateJudge() {
@@ -705,19 +786,22 @@ function updateJudge() {
     item.classList.toggle('is-yes', v === true);
     item.classList.toggle('is-no', v === false);
   });
-  const done = game.event.targets.every((p) => game.verdicts[p.idx] !== undefined);
-  $('#judge-next').disabled = !done;
+  $('#judge-next').disabled = !allJudged();
 }
 
+const allJudged = () => game.event.targets.every((p) => game.verdicts[p.idx] !== undefined)
+  && game.event.crowdKeys.every((key) => game.verdicts[key] !== undefined);
+
+// idx is a player index, or 'c0' / 'c1' for a team's pointing crowd in Who's Who.
 function setVerdict(idx, value) {
-  if (!game.event.targets.some((p) => p.idx === idx)) return;
+  if (!game.event.targets.some((p) => p.idx === idx) && !game.event.crowdKeys.includes(idx)) return;
   game.verdicts[idx] = value;
   updateJudge();
 }
 
 function scoreRound() {
   const ev = game.event;
-  if (!ev.targets.every((p) => game.verdicts[p.idx] !== undefined)) return;
+  if (!allJudged()) return;
   const before = game.sides.map((side) => side.danger);
   const tag = (p) => (versus() ? ` <small>${esc(game.sides[p.side].name)}</small>` : '');
   const lines = [];
@@ -739,6 +823,19 @@ function scoreRound() {
     side.danger = Math.min(100, side.danger + dangerPerMiss(p.side));
     lines.push(`<li class="bad"><b>${esc(p.name)}</b>${tag(p)} ${part.type === 'hold' ? 'moved! ' : ''}${p.out ? 'WEBBED OUT!' : '−1 web cartridge'}</li>`);
   }));
+  // The crowd's pointing only moves the city meter; nobody loses a life for it.
+  ev.crowdKeys.forEach((key) => {
+    const k = Number(key.slice(1));
+    const side = game.sides[k];
+    const who = versus() ? `${esc(side.name)} crowd` : 'The crowd';
+    if (game.verdicts[key]) {
+      side.danger = Math.max(0, side.danger - DANGER_HEAL);
+      lines.push(`<li class="ok"><b>${who}</b> pointed at the right spider!</li>`);
+    } else {
+      side.danger = Math.min(100, side.danger + dangerPerMiss(k));
+      lines.push(`<li class="bad"><b>${who}</b> pointed at the wrong spider!</li>`);
+    }
+  });
   game.sides.forEach((side, k) => {
     const diff = side.danger - before[k];
     if (diff) lines.push(`<li class="city">${versus() ? `${esc(side.name)} · ` : ''}City danger ${diff > 0 ? '▲' : '▼'} ${side.danger}%</li>`);
@@ -751,7 +848,7 @@ function scoreRound() {
   renderHUD();
   const word = game.sides.some((side) => side.danger >= 100) ? 'NOOO!'
     : anyGood ? (scored.every((p) => game.verdicts[p.idx]) ? 'THWIP!' : 'POW!') : 'OOF!';
-  splash(`<div class="pop">${word}</div><ul class="results">${lines.join('')}</ul>`);
+  splash(`<div class="pop">${word}</div><ul class="results${lines.length > 6 ? ' many' : ''}">${lines.join('')}</ul>`);
   later(nextRound, 2200);
 }
 
@@ -909,6 +1006,14 @@ const SLIDES = [
     demo: () => `<div class="demo"><div class="d-tag">Kraven: steal a pose!</div>${demoBlock(RED)}<div class="d-arrow">➜</div>${demoBlock(GREEN)}</div>`,
   },
   {
+    tag: 'Round type', title: 'Who’s Who: point at the owner',
+    text: (vs) => `The meme flashes, then a <b>pose</b> appears with no color. Its <b>owner strikes it</b> and everyone else does the <b>meme pointing pose</b> at them${vs ? ' (within your own team)' : ''}!`,
+    demo: () => `<div class="demo">${steps([
+      '<div class="d-meme"><img src="assets/whos-who.jpg" alt=""><span>WHO\'S WHO?!</span></div>',
+      `<div class="d-who"><img src="poses/${encodeURI(P(4).file)}" alt=""><span>Owner strikes it · everyone else 👉</span></div>`,
+    ])}</div>`,
+  },
+  {
     tag: 'Round type', title: 'Venom: nobody moves',
     text: 'Black screen, <b>FREEZE!</b> Nobody moves a muscle until it’s over. The host marks anyone who twitched.',
     demo: () => `<div class="demo venom"><div class="d-tag">Venom</div><span class="d-word">FREEZE!</span></div>`,
@@ -920,7 +1025,7 @@ const SLIDES = [
   },
   {
     tag: 'Ready?', title: 'Host controls',
-    text: (vs) => `<kbd>Space</kbd>/<kbd>Enter</kbd> continue · <kbd>1</kbd>–<kbd>${vs ? 4 : 6}</kbd> mark a player while judging${vs ? ' (second team: <kbd>Q</kbd>–<kbd>R</kbd>)' : ''} · <kbd>M</kbd> mute · <kbd>Esc</kbd> quit. Put it on the biggest screen you have!`,
+    text: (vs) => `<kbd>Space</kbd>/<kbd>Enter</kbd> continue · <kbd>1</kbd>–<kbd>${vs ? 4 : 6}</kbd> mark a player while judging${vs ? ' (second team: <kbd>Q</kbd>–<kbd>R</kbd>)' : ''} · <kbd>0</kbd>${vs ? '/<kbd>P</kbd>' : ''} the pointing crowd · <kbd>M</kbd> mute · <kbd>Esc</kbd> quit. Put it on the biggest screen you have!`,
     demo: () => `<div class="demo ready"><span class="d-word">Suit up!</span></div>`,
   },
 ];
@@ -998,7 +1103,10 @@ const actions = {
   'slide-go'(b) { goSlide(Number(b.dataset.i)); },
   'brief-next': briefNext,
   begin: beginRounds,
-  verdict(b) { setVerdict(Number(b.dataset.idx), b.dataset.v === '1'); },
+  verdict(b) {
+    const raw = b.dataset.idx;
+    setVerdict(raw.startsWith('c') ? raw : Number(raw), b.dataset.v === '1');
+  },
   'judge-next': scoreRound,
   rematch() { clearTimers(); newGame(); },
   quit() { actions.title(); },
@@ -1065,7 +1173,10 @@ function init() {
         const k = e.key.toUpperCase();
         const p = /^[1-6]$/.test(k) ? sidePlayers(0)[Number(k) - 1]
           : versus() && VERSUS_KEYS.includes(k) ? sidePlayers(1)[VERSUS_KEYS.indexOf(k)] : null;
-        if (p) setVerdict(p.idx, game.verdicts[p.idx] === undefined ? true : !game.verdicts[p.idx]);
+        const flip = (idx) => setVerdict(idx, game.verdicts[idx] === undefined ? true : !game.verdicts[idx]);
+        if (p) flip(p.idx);
+        else if (k === '0') flip('c0');
+        else if (k === 'P' && versus()) flip('c1');
         else if (go) { e.preventDefault(); scoreRound(); }
       }
         break;

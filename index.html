@@ -103,7 +103,7 @@
     <section id="screen-memorize" class="screen">
       <h2 class="comic-title">Memorize your pose!</h2>
       <div class="timer-big" id="mem-timer"></div>
-      <div id="mem-grid" class="pose-grid"></div>
+      <div id="mem-grid" class="mem-grid"></div>
       <button class="btn" data-action="begin">We're ready, hide them! ▸</button>
     </section>
 
@@ -112,7 +112,17 @@
       <div id="stage" class="stage" data-mode="splash">
         <div class="sense">
           <div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="ring"></div>
-          <div class="sense-head">🕷️</div>
+          <div class="sense-head">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <g fill="none" stroke="#ffd21f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M42 50 L24 34 L16 14 M42 56 L18 50 L6 40 M42 62 L20 70 L10 86 M44 67 L32 84 L30 98"/>
+                <path d="M58 50 L76 34 L84 14 M58 56 L82 50 L94 40 M58 62 L80 70 L90 86 M56 67 L68 84 L70 98"/>
+              </g>
+              <ellipse cx="50" cy="62" rx="13" ry="17" fill="#e3262f" stroke="#111522" stroke-width="3"/>
+              <circle cx="50" cy="40" r="10" fill="#e3262f" stroke="#111522" stroke-width="3"/>
+              <path d="M44 38 l4 3 M56 38 l-4 3" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
           <p class="sense-text">Spidey sense tingling…</p>
         </div>
         <div class="cue" id="cue"></div>
@@ -128,7 +138,7 @@
       <h2 class="comic-title" id="judge-title">Did they nail it?</h2>
       <div id="judge-grid" class="judge-cols"></div>
       <button class="btn" id="judge-next" data-action="judge-next" disabled>Score it ▸</button>
-      <p class="hint">Keys <kbd>1</kbd>–<kbd>6</kbd> flip a player's verdict (second team: <kbd>Q</kbd>–<kbd>R</kbd>) · <kbd>Enter</kbd> to continue</p>
+      <p class="hint">Keys <kbd>1</kbd>–<kbd>6</kbd> flip a player's verdict (second team: <kbd>Q</kbd>–<kbd>R</kbd>) · <kbd>0</kbd>/<kbd>P</kbd> the pointing crowd · <kbd>Enter</kbd> to continue</p>
     </section>
 
     <!-- END -->
